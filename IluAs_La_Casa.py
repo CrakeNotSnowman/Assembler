@@ -72,7 +72,7 @@ import A_fragmentCluster
 import B_ClusterAll
 import alignMain
 import sendMessage
-import MAS			# and pray that it works 
+#import MAS			# and pray that it works 
 
 # User Dependent Defaults
 inFragReads_Default 		= 'KM_Hold/inputFile.txt'
@@ -86,14 +86,14 @@ clusterDistMet_Default		= 'E'
 warning_Default 		= False
 AlignmentMethod_Default 	= 0
 STOverlapThreshold_Default 	= 30
-userFreqContact_Default 	= 'X@vtext.com'
-userEmail_Default 		= 'X@gmail.com'
+userFreqContact_Default 	= '4022134664@vtext.com'
+userEmail_Default 		= 'kmurrayis@gmail.com'
 recurse_Default			= 0
 stageText_Default 		= False
 completeText_Default 		= False
 
 # Internal Defaults 
-clustCentFile 			= "KM_Hold/clustCents"
+clustCentFile 			= "temp/clustCents"
 A_vectorFile 			= "A_Output_Vectors/Vector_File"
 A_fspecs 			= "A_Output_Vectors/file_Specs"
 prioriFile 			= "KM_Hold/priori"
@@ -102,9 +102,13 @@ clusterFolder 			= "B_Clusters/"
 statsFile 			= "Outputs/StatsFiles/StatsRun.txt"
 
 # User values
-toaddrsSMS  			= 'x@vtext.com' 
-toaddrsMMS  			= 'x@vzwpix.com'
+toaddrsSMS  			= '4022134664@vtext.com' 
+toaddrsMMS  			= '4022134664@vzwpix.com'
 
+
+def getArgsfromFile():
+    print "Eventually I'll finish this section"
+    return
 
 def interface():
     args = argparse.ArgumentParser(
@@ -269,6 +273,7 @@ def master(args) :
 
     
 
+    cleanUpTemp("temp/")
 
     # Generate 10,000 reads in pre class 1 files
     inFile = open(inFragReads, 'r')
@@ -346,7 +351,7 @@ def master(args) :
 		# remainA is now the limit, in MB for each file. 
 		if (int(remainA) > 1) :
 		    sourceFile = open(currFile, 'r')
-		    for j in range(0, 
+		    #for j in range(0,
 		    line = sourceFile.readline()
 		    lineSize = len(line)
 		    
@@ -360,11 +365,11 @@ def master(args) :
 		    '''
 		    
 	    elif (remainB == minValue):
-
+		print "HI"
 	    elif (remainC == minValue):
-
+		print "HI"
 	    elif (remainD == minValue):
-
+		print "NI"
 
     # ReCluster/Align Groups
 
@@ -700,7 +705,7 @@ def main(args, t):
     attchedFile.append(statsFile)
     recip 		= []
     recip.append(userEmail)
-    #recip.append('X@gmail.com')
+    #recip.append('jbohac61@gmail.com')
     try :
 	if (completeText == True):
 	    sendMessage.message_Send_Full_Email(recip, "Alignment Results", msg, attchedFile)
@@ -725,10 +730,168 @@ def main(args, t):
     gc.disable()
     return
 
+def prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder):
+    totalContigCount = 0
+    preCIClustCount = startingIndex
+    inFile = open(inFragReads, 'r')
+    while True:
+	contigCount = 0
+	preCIClustFile = open(str(preCIClustFolder) + str(preCIClustCount), 'w' )
+	while contigCount < CRpPreCISizeLimit:
+	    contig = inFile.readline()
+	    if (contig == ''):
+		break
+	    preCIClustFile.write(contig)
+	    contigCount += 1	
+	preCIClustFile.close()
+	preCIClustCount += 1
+	totalContigCount += contigCount
+	if (contig == ''):
+	    break
+    inFile.close()
+    return preCIClustCount, totalContigCount
+
+def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder):
+    tsSize = []
+    clustCenters = open(cIClusterCenters, 'w')
+    clustCenters.close()
+    classIClustCount = 0
+    for i in range(preCIClustFileCount):
+	print i/float(preCIClustFileCount)
+	pCIClustFile = str(preCIClustFolder) + str(i)	
+	A_vectorFile = str(preCIVectorsFolder) + str(i)
+	# Run Dictionary Metric
+	trainingSetSize, dimensions = A_fragmentCluster.main(refGenomeFile, pCIClustFile, A_vectorFile, A_fspecs)
+	tsSize.append(trainingSetSize)	
+	# Find out size and the such
+        tempVar = int(math.log(trainingSetSize/float(DRpCISize), 2))
+	print tempVar
+	numOfClusters = int(math.pow(2, tempVar))
+	print A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters
+	clustStats = B_ClusterAll.startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters)
+	print "BYE"
+	classIClustCount += numOfClusters
+
+    return
+    
+
+
+def cleanUpTemp(start_Folder):
+    print "Cleaning up " + str(start_Folder)
+    name_OF_Files = []
+    for dirname, dirnames, filenames in os.walk(start_Folder):
+	for filename in filenames:
+	    name_OF_Files.append(os.path.join(dirname, filename))
+    i = 0
+    for i in range(len(name_OF_Files)):
+	filename = name_OF_Files[i]
+	try:
+	    os.remove(filename)
+	except OSError:
+	    print "Could not delete " + str(filename) + " during cleanup"
+	    pass
+    return
+
+def assembleHome(args):
+    gc.enable()
+    # assign inputs to varibles 
+    inFragReads 		= args.input_file
+    outAlignedFragReads 	= args.output_file
+    metric 			= args.cluster_metric
+    refGenomeFile 		= args.reference_file
+    window 			= args.ami_window
+    kmerSize 			= args.kmer_size
+    numOfClusters 		= args.cluster_count
+    warning 			= args.show_warning
+    recurse 			= args.recurse
+    stageText 			= args.send_text
+    completeText 		= args.send_textemail
+    statsFile			= args.stats
+
+    # TODO: Make these open to user
+    AlignmentMethod		= AlignmentMethod_Default
+    STOverlapThreshold 		= STOverlapThreshold_Default
+    clusterDistMet		= clusterDistMet_Default
+    userFreqContact		= userFreqContact_Default
+    userEmail	 		= userEmail_Default
+
+
+    CRpPreCISizeLimit		= 10000		# Cluster Read per Class I size limit (Contig Count)
+    DRpCISize			= 500		# Approx. Reads per Cluster in Class I
+    DRpCIISize			= 80000		# Approx. Reads per Cluster in Class II: 
+    MASfileSizeGoal		= 10		# MB
+    MASAddedBufferLimit		= 2		# MB
+    MASfileSizeTrimmed 		= 8		# MB
+    bytesPerMB			= 1024*1024
+    MASfileSizeGoal		= long(MASfileSizeGoal) * bytesPerMB		# Bytes
+    MASAddedBufferLimit		= long(MASAddedBufferLimit) * bytesPerMB	# Bytes
+    MASfileSizeTrimmed 		= long(MASfileSizeTrimmed) * bytesPerMB		# Bytes
+    classIClustCount 		= 0 			# Class 1 clusters: ~78 contigs per file
+    totalContigCount 		= 0
+    preCIClustFolder		= "temp/preCIfiles/"	# ~10,000 contigs per file
+    preCIClustCount		= 0
+    preCIVectorsFolder		= "temp/preCIVectors/"
+    classICenters		= "temp/classICenters.txt"
+    classIClustersFolder	= "temp/classIclusters/"
+    classIIClusterFolder	= "temp/classIIclusters/"
+    clustCentFile		= "temp/clusterCenters.txt"
+    cIClusterCenters		= "temp/cIClustCenters.txt"
+    cIIClusterCenters		= "temp/cIIClustCenters.txt"
+    
+
+    '''
+    Go through all of the temp folders:
+	Delete everything 
+
+    1.  On startup: Generate files of 10,000 contigs in 
+	temp/preCIfiles files will be labeled as ints 0-N
+    2.  Generate files of vectors for each file 0-N in a seperate
+	folder, temp/preCIVectors/
+    3.	For each contig&vector file pair, break it up into k clusters
+	and save each cluster center in a center file, cIClusterCenters.txt
+	there will be P centers, where P = N * k
+    4.	Cluster the centers into Q clusters, and generate the coorosponding
+	files in temp/classIIclusters/
+    5.  If file i in temp/classIIclusters/ is >10Mb, split the file, name
+	one file i, and the other Q. set Q = Q + 1.
+    6.  Assemble the classIIclusters, output the results into preCIfiles
+	under the same name, then merge files into one flatfile in Output
+    7.  if the final files are too large, ensure the files are about 10,000
+	contigs in length, and repeat from step 2
+    '''
+    # Delete everything in temp
+    cleanUpTemp("temp/")
+
+
+
+    #1.	On startup: Generate files of 10,000 contigs in 
+    #	temp/preCIfiles files will be labeled as ints 0-N
+    # IN:	Input file, starting index, contig count limit, folderLocation
+    # OUT:	total number of files (N)
+    startingIndex = 0
+    preCIClustFileCount, totalContigCount = prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
+
+    
+    # 2. Generate files of vectors for each file 0-N in a seperate
+    #    folder, temp/preCIVectors/
+    # 3. For each contig&vector file pair, break it up into k clusters
+    #    and save each cluster center in a center file, cIClusterCenters.txt
+    #    there will be P centers, where P = N * k
+    # IN: preCIClustFileCount, cIClusterCenters file, refGenomeFile
+
+    generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
+
+    # Delete everything in temp
+    #cleanUpTemp()
+    gc.disable()
+    return
+
 t = 0
+getArgsfromFile()
 args = interface()
 #main(args, t)
-master(args)
+#master(args)
+assembleHome(args)
 
 
 
