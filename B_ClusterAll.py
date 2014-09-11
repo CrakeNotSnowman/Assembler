@@ -109,6 +109,14 @@ def startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClus
     return clusterStats # Clust Number, number of Contigs, Distortion Value
 
 def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize, classIClusterFolder, classIIClusterFolder):
+    print "\tA_vectorFile:\t\t", A_vectorFile
+    print "\tclustCentFile:\t\t", clustCentFile
+    print "\tnumOfClusters:\t\t", numOfClusters
+    print "\tdimensions:\t\t", dimensions
+    print "\ttrainingSetSize:\t", trainingSetSize
+    print "\tclassIClusterFolder:\t", classIClusterFolder
+    print "\tclassIIClusterFolder:\t", classIIClusterFolder
+
     # run kamivq
     kvqsplitForClust.cluster(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize)
     clustAssgn = [0]*trainingSetSize
@@ -116,9 +124,9 @@ def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, tr
     distort = []
 
     # Clean B_Clusters Files
-    for i in range (int(numOfClusters)):
-	cluster = open(str(classIIClusterFolder) + str(i), 'w')
-	cluster.close
+    #for i in range (int(numOfClusters)):
+	#cluster = open(str(classIIClusterFolder) + str(i), 'w')
+	#cluster.close
 
     # Parse File
     clustSpecs = open(clustCentFile, 'r')
@@ -139,13 +147,14 @@ def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, tr
 	#print temp
 	cII = open(str(classIIClusterFolder) + str(clustNum), 'a')
 	for i in range(len(temp)):
-	    cI = open(str(classIClusterFolder) + str(temp[i]), 'r')
-	    while True:
-		line = cI.readline()
-		if (line == ""):
-		    break
-		cII.write(line)
-	    cI.close()
+	    if (temp[i] != ""):
+		cI = open(str(classIClusterFolder) + str(temp[i]), 'r')
+		while True:
+		    line = cI.readline()
+		    if (line == ""):
+			break
+		    cII.write(line)
+	        cI.close()
 	cII.close()
 	line = clustSpecs.readline().strip()		# Line 6: Distortion Value
 	temp = line.split(":")
@@ -159,20 +168,8 @@ def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, tr
 	statsList.append(distortVal)
 	clusterStats.append(statsList)
     clustSpecs.close()
-
-    # Assign Clusters
-    contigs = open(inFragReads, 'r')
-    i = 0
-    while True:
-	contig = contigs.readline().strip()
-	clusterFile = open( str(clusterFolder) + str(clustAssgn[i]), 'a')
-	clusterFile.write(contig)
-	clusterFile.write("\n")
-	clusterFile.close()
-	i += 1
-	if ( i >= trainingSetSize):
-	    break
-    contigs.close()
+    print line
+   
 
     # Prioritize 
     distort, clusterStats = (list(t) for t in zip(*sorted(zip(distort, clusterStats))))

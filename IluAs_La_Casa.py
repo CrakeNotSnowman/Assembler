@@ -86,8 +86,8 @@ clusterDistMet_Default		= 'E'
 warning_Default 		= False
 AlignmentMethod_Default 	= 0
 STOverlapThreshold_Default 	= 30
-userFreqContact_Default 	= '4022134664@vtext.com'
-userEmail_Default 		= 'kmurrayis@gmail.com'
+userFreqContact_Default 	= 'X@vtext.com'
+userEmail_Default 		= 'kX@gmail.com'
 recurse_Default			= 0
 stageText_Default 		= False
 completeText_Default 		= False
@@ -102,8 +102,8 @@ clusterFolder 			= "B_Clusters/"
 statsFile 			= "Outputs/StatsFiles/StatsRun.txt"
 
 # User values
-toaddrsSMS  			= '4022134664@vtext.com' 
-toaddrsMMS  			= '4022134664@vzwpix.com'
+toaddrsSMS  			= 'X@vtext.com' 
+toaddrsMMS  			= 'X@vzwpix.com'
 
 
 def getArgsfromFile():
@@ -772,7 +772,111 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
 	print "BYE"
 	classIClustCount += numOfClusters
 
+    return classIClustCount, dimensions
+    
+
+def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit):
+    tempVar = int(math.log(classIClustCount * DRpCISize/float(DRpCIISize), 2))
+     
+    print "Log[ " + str(classIClustCount) + " * " + str(DRpCISize) + " / " + str(DRpCIISize) + " ]"
+    print tempVar
+    numOfCIIClusters = int(math.pow(2, tempVar))
+    numOfCIIClusters = 4
+    # ** I'm being lazy here: go back and thance this later **
+    if (numOfCIIClusters < 2):
+	numOfCIIClusters = 1
+    origNumCIIClusts = numOfCIIClusters
+    print "APES"
+    print "(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)"
+    print (cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
+    clustStats = B_ClusterAll.classIIClustering(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
+    
+    # TESTING TIME OHH YEAH
+    MASfileSizeGoal = 1024*10
+    MASAddedBufferLimit = 1024*2
+    
+    MASsizeLimit = MASfileSizeGoal + MASAddedBufferLimit
+    print numOfCIIClusters
+
+    for i in range(origNumCIIClusts):
+	# Looking at a specific file
+	currFile = str(classIIClusterFolder) + str(i)
+	statinfo = os.stat(currFile)
+	fSize = statinfo.st_size		# Bytes
+	print fSize
+	fSize = os.path.getsize(currFile)
+	print fSize
+	byteCounter = [0, 0, 0]			# MB, kB, B
+	bytesTotal = long(0)
+	bytesRunningTotal = long(0)
+	print "I EXIST YOU DAMN EXISTENTIALISTS" + "!"*i + " Oh, and this file is " + str(fSize / float(1024*1024) ) + " Mb"
+	if (fSize > MASsizeLimit):
+	    # Check the remainder of the cut size,
+	    cuts = int(fSize / MASfileSizeGoal) - 1
+	    remainder = fSize % (MASfileSizeGoal)
+	    print "\t---Started with ", numOfCIIClusters, " Clusters---"
+	    print "\tfSize:\t", fSize
+	    print "\tCuts:\t", cuts
+	    print "\tRemain:\t", remainder
+	    print "\ti:\t", i
+	    # If it's > ~2 MB, make it into it's own file,
+	    if (remainder > MASAddedBufferLimit):
+		cuts += 1
+	    print "\tCuts:\t", cuts
+	    # ----------- White Board Code (WBC) ----------- #
+	    tofile = open(str(classIIClusterFolder) + "temp", "w")
+	    fromfile = open(currFile, "r")
+	    newFileCount = 0
+	    while True:
+		line = fromfile.readline()
+		if (line == ""):
+		    print "\t\tFinalSize:     ", bytesTotal
+		    print "\t\tRemainderSize: ", fSize - bytesRunningTotal
+		    tofile.close()
+		    break
+		bytesTotal = bytesTotal + len(line)#sys.getsizeof(line)
+		#if (newFileCount == cuts):
+		#    #print "\t\t\t\t", bytesTotal
+		if ((bytesTotal > MASfileSizeGoal) and (newFileCount < cuts)):
+		    #print "\t\t\tBytesCount", bytesTotal, " / ", MASfileSizeGoal
+		    #print "\t\t\tBytesReal", sys.getsizeof(line)
+		    tofile.close()
+		    tofile = open(str(classIIClusterFolder) + str(numOfCIIClusters), "w")
+		    numOfCIIClusters += 1
+		    newFileCount += 1
+		    bytesRunningTotal += bytesTotal
+		    bytesTotal = len(line)#sys.getsizeof(line)
+		    #print bytesTotal, len(line), len(line)*4
+		tofile.write(line)
+	    try:
+		tofile.close()
+	    except:
+		print "\t\t\tFile already closed"
+	    print 
+	    fromfile.close()
+	    # Time to move the temp file back to its original file
+	    tofile = open(currFile, "w")
+	    fromfile = open(str(classIIClusterFolder) + "temp", "r")
+	    while True:
+		line = fromfile.readline()
+		if (line == ""):
+		    break
+		tofile.write(line)
+	    tofile.close()
+	    fromfile.close()
+	    # Now remove temp
+	    try:
+		os.remove(str(classIIClusterFolder) + "temp")
+	    except OSError:
+		print "Could not delete " + str(filename) + " during cleanup"
+		pass
+	    print "\t----Ended with ", numOfCIIClusters, " Clusters----"
+	   
+	    print "APPLES"
+	    
+
     return
+    
     
 
 
@@ -878,8 +982,13 @@ def assembleHome(args):
     #    and save each cluster center in a center file, cIClusterCenters.txt
     #    there will be P centers, where P = N * k
     # IN: preCIClustFileCount, cIClusterCenters file, refGenomeFile
+    classIClustCount, dimensions = generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
 
-    generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
+
+    # 4. Cluster the centers into Q clusters, and generate the coorosponding
+    #    files in temp/classIIclusters/
+    groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
+
 
     # Delete everything in temp
     #cleanUpTemp()
