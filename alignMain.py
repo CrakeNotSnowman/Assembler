@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
 
+import JBGenSuffTree
 import KM_TreeAlign
 import matplotlib.pyplot as plt
 from time import gmtime, strftime, sleep
 import gc
 import sys
 
+def jbGenSuffTreeAlign(infile, outfile):
+    JBGenSuffTree.GenTreeAlign(infile, outfile)
 
 def sfxTreeBasicAlign(filePath, overlapThreshold, outAlignedFragReads):
 

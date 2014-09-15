@@ -875,8 +875,14 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
 	    print "APPLES"
 	    
 
-    return
+    return numOfCIIClusters
     
+
+def assembleCIIClusts(numOfCIIClusters, infolder, outfolder):
+    for i in range(numOfCIIClusters):
+	alignMain.jbGenSuffTreeAlign(str(infolder) + str(i), str(outfolder) + str(i))
+
+    return
     
 
 
@@ -938,9 +944,11 @@ def assembleHome(args):
     classICenters		= "temp/classICenters.txt"
     classIClustersFolder	= "temp/classIclusters/"
     classIIClusterFolder	= "temp/classIIclusters/"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
     clustCentFile		= "temp/clusterCenters.txt"
     cIClusterCenters		= "temp/cIClustCenters.txt"
     cIIClusterCenters		= "temp/cIIClustCenters.txt"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
     
 
     '''
@@ -989,7 +997,7 @@ def assembleHome(args):
     #    files in temp/classIIclusters/
     groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
 
-
+    assembleCIIClusts(numOfCIIClusters)
     # Delete everything in temp
     #cleanUpTemp()
     gc.disable()
