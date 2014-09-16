@@ -12,7 +12,8 @@
 all:
 	rm -rf build
 	python setup2.py build
-	#sudo python setup2.py install
+	sudo python setup2.py install
+	python setup3cpp.py build
 	sudo python setup3cpp.py install
 
 clean:

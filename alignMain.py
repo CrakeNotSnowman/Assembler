@@ -10,6 +10,7 @@ import sys
 
 def jbGenSuffTreeAlign(infile, outfile):
     JBGenSuffTree.GenTreeAlign(infile, outfile)
+    return
 
 def sfxTreeBasicAlign(filePath, overlapThreshold, outAlignedFragReads):
 

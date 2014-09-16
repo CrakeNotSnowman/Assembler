@@ -35,15 +35,16 @@ int main(string in_filename, string out_filename)
         out_filename = "/home/kmurray/Desktop/AssembledContigs";
         }
     */
-    cout << "Number of reads: " << endl;
-    cin >> n_reads;
+    //cout << "Number of reads: " << endl;
+    //cin >> n_reads;
+    n_reads = 10000000;
 
     ifstream in_stream(in_filename.c_str());
     if (in_stream.fail())
     {
         cerr << "Error opening " << in_filename << endl;
         cerr << "Please enter a valid input file\n";
-        exit(-1);
+        //exit(-1);
     }
 
 
@@ -52,12 +53,11 @@ int main(string in_filename, string out_filename)
 
 
     vector<string> vec_reads = getVecReads(in_stream, n_reads);
-    cout << "Number of contigs read: " << vec_reads.size() << endl;
+    //cout << "Number of contigs read: " << vec_reads.size() << endl;
 
 
     Assembler assm;// = new Assembler();
     assm.assemble(vec_reads, out_filename);
-
 
     return 0;
 
@@ -66,10 +66,10 @@ int main(string in_filename, string out_filename)
 
 static PyObject * JBGenSuffTree(PyObject * self, PyObject * args)
 {
-  string in_filename;
-  string out_filename;
-  PyObject * ret;
+  char * in_filename;
+  char * out_filename;
   int result;
+  PyObject * ret;
 
   // parse arguments
   if (!PyArg_ParseTuple(args, "ss", &in_filename, &out_filename)) {
@@ -77,8 +77,11 @@ static PyObject * JBGenSuffTree(PyObject * self, PyObject * args)
   }
 
   // run the actual function
-  result =  main(in_filename, out_filename);
+  main(in_filename, out_filename);
+  
+  ret = PyInt_FromLong(0);
   return ret;
+  //Py_RETURN_NONE;// Py_BuildValue("i", result);
 }
 
 static PyMethodDef JBGenTreeAlignmentMethods[] = {
@@ -89,6 +92,6 @@ static PyMethodDef JBGenTreeAlignmentMethods[] = {
 PyMODINIT_FUNC
 initJBGenSuffTree(void)
 {
-	(void) Py_InitModule("JBGenSuffTree", JBGenTreeAlignmentMethods);
+	Py_InitModule("JBGenSuffTree", JBGenTreeAlignmentMethods);
 }
 

@@ -191,10 +191,6 @@ def clusterSpecs(clustNum, readInClust, distortion, mergeCount, finalLen, startL
     return clustInfo
 
 
-#def alignChunk(args, t) :
-
-
-#def preClassIClusters(
 '''
 OUTLINE:
 INFILE:
@@ -205,530 +201,7 @@ INFILE:
     
 '''
 
-def master(args) :
-     
-    CRpPreCISizeLimit		= 10000		# Cluster Read per Class I size limit (Contig Count)
-    DRpCISize			= 500		# Approx. Reads per Cluster in Class I
-    DRpCIISize			= 80000		# Approx. Reads per Cluster in Class II: 
-    MASfileSizeGoal		= 10		# MB
-    MASAddedBufferLimit		= 2		# MB
-    MASfileSizeTrimmed 		= 8		# MB
-    bytesPerMB			= 1024*1024
-    MASfileSizeGoal		= long(MASfileSizeGoal) * bytesPerMB		# Bytes
-    MASAddedBufferLimit		= long(MASAddedBufferLimit) * bytesPerMB	# Bytes
-    MASfileSizeTrimmed 		= long(MASfileSizeTrimmed) * bytesPerMB		# Bytes
-    
 
-    gc.enable()
-    # assign inputs to varibles 
-    inFragReads 		= args.input_file
-    outAlignedFragReads 	= args.output_file
-    metric 			= args.cluster_metric
-    refGenomeFile 		= args.reference_file
-    window 			= args.ami_window
-    kmerSize 			= args.kmer_size
-    numOfClusters 		= args.cluster_count
-    warning 			= args.show_warning
-    recurse 			= args.recurse
-    stageText 			= args.send_text
-    completeText 		= args.send_textemail
-    statsFile			= args.stats
-
-    # TODO: Make these open to user
-    AlignmentMethod		= AlignmentMethod_Default
-    STOverlapThreshold 		= STOverlapThreshold_Default
-    clusterDistMet		= clusterDistMet_Default
-    userFreqContact		= userFreqContact_Default
-    userEmail	 		= userEmail_Default
-
-    # assign varibles for later use
-    trainingSetSize 		= 0
-    dimensions 			= 0
-    timeStart			= 0
-    timeStartTotal		= 0
-    totalEnd			= 0
-    timeStageA			= 0
-    timeStageB			= 0
-    timeStageC			= 0
-    attchedFile 		= []
-    recip 			= []
-    tsSize			= []
-    metricD 			= {"D": 0, "DICT": 0,  "DIC": 0,  "DICTIONARY": 0,  "A": 1,   "AMI": 1}
-
-
-    classIClustCount 		= 0 			# Class 1 clusters: ~78 contigs per file
-    totalContigCount 		= 0
-    preCIClustFolder		= "temp/preCIfiles/"	# ~10,000 contigs per file
-    preCIClustCount		= 0
-    preCIVectorsFolder		= "temp/preCIVectors/"
-    classICenters		= "temp/classICenters.txt"
-    classIClustersFolder	= "temp/classIclusters/"
-    classIIClusterFolder	= "temp/classIIclusters/"
-    clustCentFile		= "temp/clusterCenters.txt"
-    cIClusterCenters		= "temp/cIClustCenters.txt"
-    cIIClusterCenters		= "temp/cIIClustCenters.txt"
-    
-
-
-
-    
-
-    cleanUpTemp("temp/")
-
-    # Generate 10,000 reads in pre class 1 files
-    inFile = open(inFragReads, 'r')
-    while True:
-	contigCount = 0					# Setting the counter for contigs/file
-	preCIClustFile = open(str(preCIClustFolder) + str(preCIClustCount), 'w' )
-	while contigCount < CRpPreCISizeLimit:
-	    contig = inFile.readline()
-	    if (contig == ''):
-		break
-	    preCIClustFile.write(contig)
-	    contigCount += 1	
-	preCIClustFile.close()
-	preCIClustCount += 1
-	totalContigCount += contigCount
-	if (contig == ''):
-	    break
-    inFile.close()
-
-    # Generate PreCI Vectors
-    #cent = open(classICenters, 'w')
-    #cent.close()
-    clustCenters = open(cIClusterCenters, 'w')
-    clustCenters.close()
-    for i in range(preCIClustCount):
-	print i/float(preCIClustCount)
-	pCIClustFile = str(preCIClustFolder) + str(i)	
-	A_vectorFile = str(preCIVectorsFolder) + str(i)
-	# Run Dictionary Metric
-	trainingSetSize, dimensions = A_fragmentCluster.main(refGenomeFile, pCIClustFile, A_vectorFile, A_fspecs)
-	tsSize.append(trainingSetSize)	
-	# Find out size and the such
-        tempVar = int(math.log(trainingSetSize/float(DRpCISize), 2))
-	
-	numOfClusters = int(math.pow(2, tempVar))
-	clustStats = B_ClusterAll.startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters)
-	classIClustCount += numOfClusters
-
-
-
-    # Cluster/Align Cluster chunks
-    tempVar = int(math.log(classIClustCount * DRpCISize/float(DRpCIISize), 2))
-    numOfCIIClusters = int(math.pow(2, tempVar))
-    #numOfCIIClusters = 2
-    # Group/Merge Clusters
-    clustStats = B_ClusterAll.classIIClustering(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
-
-    # Refine CII Clusters: Ensure filesize does not exceed (    MASfileSizeGoal + MASAddedBufferLimit )
-    # MASfileSizeTrimmed
-    fullCIIClusterCount = numOfCIIClusters
-    i = 0
-    MASsizeLimit = MASfileSizeGoal + MASAddedBufferLimit
-
-    for i in range(numOfCIIClusters):
-	# Looking at a specific file
-	currFile = str(classIIClusterFolder) + str(i)
-	statinfo = os.stat(currFile)
-	fSize = statinfo.st_size		# Bytes
-	byteCounter = [0, 0, 0]			# MB, kB, B
-	bytesTotal = long(0)
-	if (fSize > MASsizeLimit):
-	    # Making sure clusters are smaller than the limit
-	    remainA = fSize % MASfileSizeGoal
-	    remainC = MASfileSizeGoal - remainA
-	    remainB = fSize % MASfileSizeTrimmed
-	    remainD = MASfileSizeTrimmed - remainD
-
-	    minValue = min(remainA, remainB, remainC, remainD)
-
-
-	    if (remainA == minValue):
-		# best files will be files close to 10 MB limit
-		#    And the remainder will be distributed in each file
-		remainA = fSize / float(MASfileSizeGoal)
-		# remainA is now the limit, in MB for each file. 
-		if (int(remainA) > 1) :
-		    sourceFile = open(currFile, 'r')
-		    #for j in range(0,
-		    line = sourceFile.readline()
-		    lineSize = len(line)
-		    
-		    '''
-		    ok so I need to see if I need to make more than one file
-		    Here I do, so next I need to write the new file,
-		    incriment the counter
-		    open the new file, and source file,
-		    copy line by line 
-
-		    '''
-		    
-	    elif (remainB == minValue):
-		print "HI"
-	    elif (remainC == minValue):
-		print "HI"
-	    elif (remainD == minValue):
-		print "NI"
-
-    # ReCluster/Align Groups
-
-	
-    '''
-    Read INFILE into 10,000 line chunks
-    Save each chunk to file N
-    For file i in N
-       cluster (64)
-    	    For j in 64:
-    		Save Center
-    		Align cluster: save alignment in cluster
-     Cluster the cluster centers 
-
-    Number of Lines 			= 5,466,888
-    Number of chunks 			= 547
-    Start subCluster (Class 1) Count	= 64
-    number of total clusters 		= Start subCluster Count * Number of chunks
-					= 547 * 64
-					= 35,008
-    number of Class 2 Clusters 		= number of total clusters / subCluster (Class 1) Count
-					= 35,008 / 64
-					= 547
-					= 512 (base 2)
-    
-    ((Number of lines/ 10,000) + 1 ) / subClusterCount)
-
-    '''
-    return
-
-def main(args, t):
-    gc.enable()
-    # assign inputs to varibles 
-    inFragReads 		= args.input_file
-    outAlignedFragReads 	= args.output_file
-    metric 			= args.cluster_metric
-    refGenomeFile 		= args.reference_file
-    window 			= args.ami_window
-    kmerSize 			= args.kmer_size
-    numOfClusters 		= args.cluster_count
-    warning 			= args.show_warning
-    recurse 			= args.recurse
-    stageText 			= args.send_text
-    completeText 		= args.send_textemail
-    statsFile			= args.stats
-
-    # TODO: Make these open to user
-    AlignmentMethod		= AlignmentMethod_Default
-    STOverlapThreshold 		= STOverlapThreshold_Default
-    clusterDistMet		= clusterDistMet_Default
-    userFreqContact		= userFreqContact_Default
-    userEmail	 		= userEmail_Default
-
-    # assign varibles for later use
-    trainingSetSize 		= 0
-    dimensions 			= 0
-    timeStart			= 0
-    timeStartTotal		= 0
-    totalEnd			= 0
-    timeStageA			= 0
-    timeStageB			= 0
-    timeStageC			= 0
-    attchedFile 		= []
-    recip 			= []
-
-
-
-    # check that input are valid
-    #   Input File:
-    infileCheck = ''
-    if (warning == True):
-	if (inFragReads == inFragReads_Default):
-	    infileCheck = (raw_input("WARNING:\n\tThe default input Fragread file is selected: '"+ str(inFragReads_Default) + "'\n    If this is ok, press enter.\n    If not, please enter the desired input file: \n"))
-	if (infileCheck != ''):
-	    inFragReads = infileCheck
-
-    while (os.path.isfile(inFragReads) == False):
-	print "ERROR:\n\tThe Fragment Reads file was invalid:\n\t    It does not appear to exist."
-	inFragReads = (raw_input("Please enter the desired input file: \n"))
-    
-    #   Output File:
-    if (warning == True):
-	outfileCheck = ''
-	while (os.path.isfile(outAlignedFragReads) == True):
-	    print "WARNING:\n\tThe Output File Already Exists:\n\t    The contents of the file will be deleted unless you change the Output File"
-	    outfileCheck = (raw_input("    If this is ok, press enter.\n    If not, please enter the desired output file:  \n"))
-	    if (outfileCheck == ''):
-		outfileCheck = outAlignedFragReads
-		break
-	outAlignedFragReads = outfileCheck
-
-    #   Metric
-    metricD = {"D": 0, "DICT": 0,  "DIC": 0,  "DICTIONARY": 0,  "A": 1,   "AMI": 1}
-    metric = metric.upper()
-    while (metric not in metricD) :
-	
-	metric = (raw_input("Please Enter the Desired Metric\n    D :  Dictionary\n    A :  AMI\n"))
-	metric = metric.upper()
-
-    #       Dictionary
-    if (metricD[metric] == 0):
-	if (warning == True):
-	    if (refGenomeFile == refGenomeFile_Default):
-		reffileCheck = ''
-		refFileCheck = (raw_input("WARNING:\n\tThe default Reference Genome file is selected: '"+ str(refGenomeFile_Default) + "'\n    If this is ok, press enter.\n    If not, please enter the desired Reference Genome file: \n"))
-		if (refFileCheck != ''):
-		    refGenomeFile = refFileCheck
-
-	while (os.path.isfile(refGenomeFile) == False):
-	    print "ERROR:\n\tThe Reference Genome file file was invalid:\n\t    It does not appear to exist."
-	    refGenomeFile = (raw_input("Please enter the desired input file: \n"))
-
-
-    #       AMI
-    elif (metricD[metric] == 1):
-	if (warning == True):
-	    if (window == window_Default):
-		windowCheck = ''
-		windowCheck = (raw_input("WARNING:\n\tThe default AMI Window Size is selected: '"+ str(window_Default) + "'\n    If this is ok, press enter.\n    If not, please enter the desired AMI Window Size: \n"))
-		if (windowCheck != ''):
-		    window = int(windowCheck)
-
-
-    #       kmer ***NOT YET SUPPORTED***
-    elif (metricD[metric] == 2):
-	if (warning == True):
-	    if (kmerSize == kmerSize_Default):
-		kmerSizeCheck = ''
-		kmerSizeCheck = (raw_input("WARNING:\n\tThe default Kmer Size is selected: '"+ str(kmerSize_Default) + "'\n    If this is ok, press enter.\n    If not, please enter the desired Kmer Size: \n"))
-		if (kmerSizeCheck != ''):
-		    kmerSize = int(kmerSizeCheck)
-
-
-    #   Clusters
-    if (warning == True):
-	if (numOfClusters == numOfClusters_Default):
-	    numOfClustersCheck = ''
-	    numOfClustersCheck = (raw_input("WARNING:\n\tThe default Number of Clusters is selected: '"+ str(numOfClusters_Default) + "'\n    If this is ok, press enter.\n    If not, please enter the desired Number of Clusters. \n    **IT MUST BE BASE 2:** \n"))
-	    if (numOfClustersCheck != ''):
-		numOfClusters = int(numOfClustersCheck)
-
-    clusterBaseCheck = math.log(numOfClusters, 2)
-    while ( clusterBaseCheck != int(clusterBaseCheck) ):
-	print "ERROR: \n\tNumber of Clusters was not Base 2"
-	numOfClusters = int(raw_input("Please Enter the Desired Number of Clusters: \n"))
-	clusterBaseCheck = math.log(numOfClusters, 2)
-    '''
-    # assign inputs to varibles 
-    args.input_file		= inFragReads
-    outAlignedFragReads 	= args.output_file
-    metric 			= args.cluster_metric
-    refGenomeFile 		= args.reference_file
-    window 			= args.ami_window
-    kmerSize 			= args.kmer_size
-    numOfClusters 		= args.cluster_count
-    warning 			= args.show_warning
-    recurse 			= args.recurse
-    '''
-
-
-
-
-    stats = open(statsFile, 'w')
-    stats.write(strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime()) )
-    stats.write('\nInput File:\t\t\t' + str(inFragReads) + '\nOutput File:\t\t\t' + str(outAlignedFragReads) )    
-    if (metricD[metric] == 0):
-	# Dictionary Metric
-	stats.write("\nVectorization Method:\t\tDictionary\nReference Sequence File:\t" + str(refGenomeFile) )
-    elif (metricD[metric] == 1):
-	# Run AMI Metric
-	stats.write("Vectorization Method:\tAverage Mutual Information\n\tSpecs:\tWindow Size:\t" + str(window) )
-    elif (metricD[metric] == 2):
-	# Run Kmer Metric
-	print 'Waldo: \n"Phooey.\n"How on earth did you manage to get here?\n"' 
-	stats.write("Vectorization Method:\tKmer\n\tSpecs:\tKmer Size:\t" + str(kmerSize) )
-    stats.write("\nNumber of Clusters:\t\t" + str(numOfClusters) )
-    if (clusterDistMet == 'E'):
-	stats.write("\nCluster Assignment:\t\tEuclidean" )
-    elif (clusterDistMet == 'C'):
-	stats.write("\nCluster Assignment:\t\tCorrelational" )
-    if (AlignmentMethod == 0):
-	stats.write("\nAlignment Method:\t\tSuffix Tree based Overlap Search" )
-	stats.write("\n\tOverlap Threshold:\t" + str(STOverlapThreshold) )
-    stats.close()
-
-    '''
- 
-    inFragReads 
-    outAlignedFragReads 
-    metric 
-    refGenomeFile 
-    window 
-    kmerSize 
-    numOfClusters
-    warning 
-    '''
-    # msg = "TEST"
-    # attchedFile = []
-    # attchedFile.append(prioriFile)
-    # recip = []
-    # recip.append(userEmail)
-    # sendMessage.message_Send_Full_Email(recip, "TEST ATTACHMENT", msg, attchedFile)
-
-    
-    #*********#
-    # Stage A
-    print "\t\t******** STARTING PROGRAM ********\n"
-    if (numOfClusters > 1):
-	timeStartTotal 	= timeit.default_timer()
-	timeStart 		= timeStartTotal
-	
-	if (metricD[metric] == 0):
-	    # Run Dictionary Metric
-	    trainingSetSize, dimensions = A_fragmentCluster.main(refGenomeFile, inFragReads, A_vectorFile, A_fspecs)
-	elif (metricD[metric] == 1):
-	    # Run AMI Metric
-	    trainingSetSize, dimensions = A_AMIGenVects.main(inFragReads, window, A_vectorFile, A_fspecs)
-	elif (metricD[metric] == 2):
-	    # Run Kmer Metric
-	    print 'Waldo: \n"Phooey.\n"How on earth did you manage to get here?\n"' 
-
-	totalEnd 		= timeit.default_timer()
-	timeStageA		= totalEnd - timeStart
-	timeStageA		= str(datetime.timedelta(seconds = timeStageA))
-	msg 		= ("Stage A: building Vectors is complete.\nTime: " + str(timeStageA))
-	try:
-	    if (stageText == True):
-		sendMessage.sms_message_Send(userFreqContact, msg)
-	except:
-	    print "Could not send text message"
-	print msg
-	stats = open(statsFile, 'a')
-	stats.write("\nNumber of Reads:\t\t" + str(trainingSetSize) )
-	stats.write("\nVector Dimensions:\t\t" + str(dimensions) )
-	stats.write("\n\nStage A time:\t\t\t" + str(timeStageA) )
-	stats.close()
-
-
-	#*********#
-	# Stage B
-	timeStart 		= timeit.default_timer()
-
-	#distort = B_trvqsplit.startClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize)
-	#B_clusterAssignment.mainClustAssignment(clustCentFile, inFragReads, A_vectorFile, clusterDistFolder, clusterFolder, clusterDistMet)
-	#clustPrioriArray, stdDevArray = B_clusterPrioritization.clusterPriori(clusterDistFolder, clustCentFile, prioriFile)
-	clustStats = B_ClusterAll.startClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize, inFragReads, clusterFolder)
-	# Clust Number, number of Contigs, Distortion Value
-
-	totalEnd 		= timeit.default_timer()
-	timeStageB		= totalEnd - timeStart
-	timeStageB		= str(datetime.timedelta(seconds = timeStageB))
-	msg 			= ("Stage B: Clustering Vectors is complete.\nTime: " + str(timeStageB))
-	try:
-	    if (stageText == True):
-		sendMessage.sms_message_Send(userFreqContact, msg)
-	except:
-	    print "Could not send text message"
-	print msg
-	stats = open(statsFile, 'a')
-	#stats.write("\nCluster Distortion:\t\t" + str(distort) )
-	stats.write("\nStage B time:\t\t\t" + str(timeStageB) )
-	stats.close()
-    else :
-	clustStats	= []
-	temp 			= []
-	temp.append(0)
-	temp.append(2)
-	temp.append(1)
-	clustStats.append(temp)
-	#clustPrioriArray[0][0] = 0
-	#clustPrioriArray[0][1] = 2
-	
-    stats = open(statsFile, 'a')
-    stats.write("\n\nCluster Specs\n")
-    stats.write("01: Cluster Number\n02: KM score\n03: Distortion\n04: Number of Reads\n05: Number of Mergers\n06: Starting Smallest Read\n07: Final Smallest Read\n08: S. Average Size Read\n09: F. Average Size Read\n10: S. Median Size Read\n11: F. Median Size Read\n12: S. Largest Read\n13: F. Largest Size Read\n\n")
-    stats.write("01\t02\t\t03\t\t04\t05\t06\t07\t08\t\t09\t\t10\t11\t12\t13\n\n")
-    stats.close()
-
-    #*********#
-    # Stage C
-    timeStart 		= timeit.default_timer()
-    outfile 		= open(outAlignedFragReads, 'w')
-    outfile.close()
-    totalMerged 	= 0
-    for i in range(len(clustStats)):
-	stats = open(statsFile, 'a')
-	if (clustStats[i][1] == 1):
-	    # Move single seq to output file: no use doing anything else
-	    filePath = str(clusterFolder) + str(clustStats[i][0])
-	if (clustStats[i][1] > 1):
-	    # Valid Cluster of more than 1 sequence
-	    # Use Alignement Method Preselected
-	    if (AlignmentMethod == 0):
-		# Suffix Tree Direct Overlap
-		# print "Valid: " + str(clustPrioriArray[i])
-		try: 
-		    if (numOfClusters > 1) :
-			filePath = str(clusterFolder) + str(clustStats[i][0])
-		    else:
-			filePath = inFragReads
-		    mergeCount, finalLen, startLen = alignMain.sfxTreeBasicAlign(filePath, STOverlapThreshold, outAlignedFragReads)
-		    clustInfo = clusterSpecs(clustStats[i][0], clustStats[i][1], clustStats[i][2], mergeCount, finalLen, startLen)
-		    totalMerged += mergeCount
-		    for j in range(len(clustInfo)):
-			stats.write(str(clustInfo[j]) + "\t")
-		except:
-		    print ("Error in cluster " + str(clustStats[i][0]))
-		    stats.write("Error in cluster " + str(clustStats[i][0]))
-	stats.write("\n")
-	stats.close()
-
-
-    totalEnd 		= timeit.default_timer()
-    timeStageC		= totalEnd - timeStart
-    timeStageC		= str(datetime.timedelta(seconds = timeStageC))
-    msg 		= ("Stage C: Contig Alignment is complete.\nTime: " + str(timeStageC))
-    print msg
-    msg 		= ("Program Pass " + str(t + 1) + " complete.\nTotal Time:   " + str(datetime.timedelta(seconds = (totalEnd - timeStartTotal) )) + "\nTotal Merged: " + str(totalMerged))
-    try:
-	if (completeText == True):
-	    sendMessage.sms_message_Send(userFreqContact, msg)
-    except:
-	print "Could not send text message"
-    
-    stats 		= open(statsFile, 'a')
-    stats.write("\n\nTotal Reads Merged:\t\t" + str(totalMerged) )
-    stats.write("\nStage C Time:\t\t" + str(timeStageC) )
-    stats.write("\nTotal Run Time:\t\t" + str(totalEnd - timeStartTotal) )
-    stats.close()
-
-    msg 		= "Attached is the stats for the most recent alignment run.\n\tEnjoy!"
-    attchedFile 	= []
-    attchedFile.append(statsFile)
-    recip 		= []
-    recip.append(userEmail)
-    #recip.append('jbohac61@gmail.com')
-    try :
-	if (completeText == True):
-	    sendMessage.message_Send_Full_Email(recip, "Alignment Results", msg, attchedFile)
-    except:
-	print "Could not send stats page"
-    t += 1
-    if ( (recurse > 0) and (args.cluster_count > 1) ):
-	args.cluster_count 	= args.cluster_count / 2
-	recurse 		= recurse - 1
-	args.input_file 	= args.output_file
-	tempStr 		= args.output_file.split('.')[0]
-	tempStr 		= tempStr.split('Pass')[0]
-	args.output_file 	= str(tempStr + 'Pass' + str(t) + ".txt" )
-	tempStr 		= args.stats.split('.')[0]
-	tempStr			= tempStr.split('Run')[0]
-	args.stats 		= str(tempStr + 'Run' + str(t) + ".txt" )
-	args.show_warning 	= False
-	main(args, t)
-	
-	
-
-    gc.disable()
-    return
 
 def prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder):
     totalContigCount = 0
@@ -757,7 +230,7 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
     clustCenters.close()
     classIClustCount = 0
     for i in range(preCIClustFileCount):
-	print i/float(preCIClustFileCount)
+	#print i/float(preCIClustFileCount)
 	pCIClustFile = str(preCIClustFolder) + str(i)	
 	A_vectorFile = str(preCIVectorsFolder) + str(i)
 	# Run Dictionary Metric
@@ -765,11 +238,11 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
 	tsSize.append(trainingSetSize)	
 	# Find out size and the such
         tempVar = int(math.log(trainingSetSize/float(DRpCISize), 2))
-	print tempVar
+	#print tempVar
 	numOfClusters = int(math.pow(2, tempVar))
-	print A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters
+	#print A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters
 	clustStats = B_ClusterAll.startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters)
-	print "BYE"
+	#print "BYE"
 	classIClustCount += numOfClusters
 
     return classIClustCount, dimensions
@@ -778,17 +251,17 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
 def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit):
     tempVar = int(math.log(classIClustCount * DRpCISize/float(DRpCIISize), 2))
      
-    print "Log[ " + str(classIClustCount) + " * " + str(DRpCISize) + " / " + str(DRpCIISize) + " ]"
-    print tempVar
+    #print "Log[ " + str(classIClustCount) + " * " + str(DRpCISize) + " / " + str(DRpCIISize) + " ]"
+    #print tempVar
     numOfCIIClusters = int(math.pow(2, tempVar))
     numOfCIIClusters = 4
     # ** I'm being lazy here: go back and thance this later **
     if (numOfCIIClusters < 2):
 	numOfCIIClusters = 1
     origNumCIIClusts = numOfCIIClusters
-    print "APES"
-    print "(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)"
-    print (cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
+    #print "APES"
+    #print "(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)"
+    #print (cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
     clustStats = B_ClusterAll.classIIClustering(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
     
     # TESTING TIME OHH YEAH
@@ -796,33 +269,33 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
     MASAddedBufferLimit = 1024*2
     
     MASsizeLimit = MASfileSizeGoal + MASAddedBufferLimit
-    print numOfCIIClusters
+    #print numOfCIIClusters
 
     for i in range(origNumCIIClusts):
 	# Looking at a specific file
 	currFile = str(classIIClusterFolder) + str(i)
 	statinfo = os.stat(currFile)
 	fSize = statinfo.st_size		# Bytes
-	print fSize
+	#print fSize
 	fSize = os.path.getsize(currFile)
-	print fSize
+	#print fSize
 	byteCounter = [0, 0, 0]			# MB, kB, B
 	bytesTotal = long(0)
 	bytesRunningTotal = long(0)
-	print "I EXIST YOU DAMN EXISTENTIALISTS" + "!"*i + " Oh, and this file is " + str(fSize / float(1024*1024) ) + " Mb"
+	#print "I EXIST YOU DAMN EXISTENTIALISTS" + "!"*i + " Oh, and this file is " + str(fSize / float(1024*1024) ) + " Mb"
 	if (fSize > MASsizeLimit):
 	    # Check the remainder of the cut size,
 	    cuts = int(fSize / MASfileSizeGoal) - 1
 	    remainder = fSize % (MASfileSizeGoal)
-	    print "\t---Started with ", numOfCIIClusters, " Clusters---"
-	    print "\tfSize:\t", fSize
-	    print "\tCuts:\t", cuts
-	    print "\tRemain:\t", remainder
-	    print "\ti:\t", i
+	    #print "\t---Started with ", numOfCIIClusters, " Clusters---"
+	    #print "\tfSize:\t", fSize
+	    #print "\tCuts:\t", cuts
+	    #print "\tRemain:\t", remainder
+	    #print "\ti:\t", i
 	    # If it's > ~2 MB, make it into it's own file,
 	    if (remainder > MASAddedBufferLimit):
 		cuts += 1
-	    print "\tCuts:\t", cuts
+	    #print "\tCuts:\t", cuts
 	    # ----------- White Board Code (WBC) ----------- #
 	    tofile = open(str(classIIClusterFolder) + "temp", "w")
 	    fromfile = open(currFile, "r")
@@ -830,8 +303,8 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
 	    while True:
 		line = fromfile.readline()
 		if (line == ""):
-		    print "\t\tFinalSize:     ", bytesTotal
-		    print "\t\tRemainderSize: ", fSize - bytesRunningTotal
+		    #print "\t\tFinalSize:     ", bytesTotal
+		    #print "\t\tRemainderSize: ", fSize - bytesRunningTotal
 		    tofile.close()
 		    break
 		bytesTotal = bytesTotal + len(line)#sys.getsizeof(line)
@@ -852,7 +325,7 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
 		tofile.close()
 	    except:
 		print "\t\t\tFile already closed"
-	    print 
+	    #print 
 	    fromfile.close()
 	    # Time to move the temp file back to its original file
 	    tofile = open(currFile, "w")
@@ -870,9 +343,9 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
 	    except OSError:
 		print "Could not delete " + str(filename) + " during cleanup"
 		pass
-	    print "\t----Ended with ", numOfCIIClusters, " Clusters----"
+	    #print "\t----Ended with ", numOfCIIClusters, " Clusters----"
 	   
-	    print "APPLES"
+	    #print "APPLES"
 	    
 
     return numOfCIIClusters
@@ -981,6 +454,7 @@ def assembleHome(args):
     # IN:	Input file, starting index, contig count limit, folderLocation
     # OUT:	total number of files (N)
     startingIndex = 0
+    print "Preping the first files, ", CRpPreCISizeLimit, " contigs per file..."
     preCIClustFileCount, totalContigCount = prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
 
     
@@ -990,16 +464,20 @@ def assembleHome(args):
     #    and save each cluster center in a center file, cIClusterCenters.txt
     #    there will be P centers, where P = N * k
     # IN: preCIClustFileCount, cIClusterCenters file, refGenomeFile
+    print "Building the clusters of contigs..."
     classIClustCount, dimensions = generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
 
 
     # 4. Cluster the centers into Q clusters, and generate the coorosponding
     #    files in temp/classIIclusters/
-    groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
+    print "Grouping Clusters..."
+    numOfCIIClusters = groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
 
-    assembleCIIClusts(numOfCIIClusters)
+    print "Assembling Groups..."
+    assembleCIIClusts(numOfCIIClusters, classIIClusterFolder, cIIClusterOutputFolder)
     # Delete everything in temp
     #cleanUpTemp()
+    print "DONE! Outputs are located in ", cIIClusterOutputFolder
     gc.disable()
     return
 

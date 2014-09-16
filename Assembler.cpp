@@ -89,10 +89,10 @@ clock_t t1,t2;
         assmTree->put(testSet[i], i);
     }
 
-    cout << "setting node depths" << endl;
+    //cout << "setting node depths" << endl;
     setNodeDepths(assmTree->root, 0);
     int numStrings = testSet.size();
-    cout << "populating indices" << endl;
+    //cout << "populating indices" << endl;
     populateIndices(assmTree, testSet);
 
     int curr_depth = maxDepth;
@@ -104,7 +104,7 @@ clock_t t1,t2;
     vector<int> *chain_tmp = new vector<int>(testSet.size(), 0);
     vector<int> *wrap_tmp = new vector<int>(testSet.size(), 0);
     vector<int> u_data;
-    cout << "main loop" << endl;
+    //cout << "main loop" << endl;
     int count = 0;
 
     shared_ptr<Node> u;
@@ -211,7 +211,7 @@ float diff ((float)t2-(float)t1);
 
 
 
-    cout << "Assembly done - " << diff/CLOCKS_PER_SEC << " seconds "<<endl;
+    //cout << "Assembly done - " << diff/CLOCKS_PER_SEC << " seconds "<<endl;
 
     vector<string> result = printAssembled(testSet);
 
@@ -233,9 +233,9 @@ float diff ((float)t2-(float)t1);
         j++;
         out_stream << s << endl;
     }
-cout << "Results printed!" << endl;
-cout << "longest line: " << line_num << " - " << smax << endl;
- exit(0);
+//cout << "Results printed!" << endl;
+//cout << "longest line: " << line_num << " - " << smax << endl;
+ //exit(0);
 
     return 0;
 }

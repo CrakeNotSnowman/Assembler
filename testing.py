@@ -18,9 +18,16 @@ def main():
     for i in range(len(name_OF_Files)):
 	print i
 	filename = name_OF_Files[i]
+	print filename
 	outfileName = str(outputFolder) + str(i)
 	alignMain.jbGenSuffTreeAlign(filename, outfileName)
-  
+'''
+	try:
+ 	    alignMain.jbGenSuffTreeAlign(filename, outfileName)
+	    print "HERROOOS"
+	except:
+	    print "Caught something... Maybe a cold"
+'''
 
 
 main()

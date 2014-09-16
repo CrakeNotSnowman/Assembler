@@ -109,13 +109,13 @@ def startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClus
     return clusterStats # Clust Number, number of Contigs, Distortion Value
 
 def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize, classIClusterFolder, classIIClusterFolder):
-    print "\tA_vectorFile:\t\t", A_vectorFile
-    print "\tclustCentFile:\t\t", clustCentFile
-    print "\tnumOfClusters:\t\t", numOfClusters
-    print "\tdimensions:\t\t", dimensions
-    print "\ttrainingSetSize:\t", trainingSetSize
-    print "\tclassIClusterFolder:\t", classIClusterFolder
-    print "\tclassIIClusterFolder:\t", classIIClusterFolder
+    #print "\tA_vectorFile:\t\t", A_vectorFile
+    #print "\tclustCentFile:\t\t", clustCentFile
+    #print "\tnumOfClusters:\t\t", numOfClusters
+    #print "\tdimensions:\t\t", dimensions
+    #print "\ttrainingSetSize:\t", trainingSetSize
+    #print "\tclassIClusterFolder:\t", classIClusterFolder
+    #print "\tclassIIClusterFolder:\t", classIIClusterFolder
 
     # run kamivq
     kvqsplitForClust.cluster(A_vectorFile, clustCentFile, numOfClusters, dimensions, trainingSetSize)
@@ -168,7 +168,7 @@ def classIIClustering(A_vectorFile, clustCentFile, numOfClusters, dimensions, tr
 	statsList.append(distortVal)
 	clusterStats.append(statsList)
     clustSpecs.close()
-    print line
+    #print line
    
 
     # Prioritize 
