@@ -63,6 +63,7 @@ import argparse, textwrap
 import math
 import gc
 import timeit
+import time
 import datetime
 import numpy
 from time import gmtime, strftime
@@ -72,7 +73,6 @@ import A_fragmentCluster
 import B_ClusterAll
 import alignMain
 import sendMessage
-#import MAS			# and pray that it works 
 
 # User Dependent Defaults
 inFragReads_Default 		= 'KM_Hold/inputFile.txt'
@@ -81,13 +81,13 @@ metric_Default 			= 'N'
 refGenomeFile_Default 		= 'KM_Hold/referenceFasta3.txt'
 window_Default 			= 25
 kmerSize_Default 		= 7
-numOfClusters_Default 		= 128
+numOfClusters_Default 		= 32
 clusterDistMet_Default		= 'E'
 warning_Default 		= False
 AlignmentMethod_Default 	= 0
-STOverlapThreshold_Default 	= 30
-userFreqContact_Default 	= 'X@vtext.com'
-userEmail_Default 		= 'kX@gmail.com'
+STOverlapThreshold_Default 	= 50
+userFreqContact_Default 	= 'N@vtext.com'
+userEmail_Default 		= 'N@gmail.com'
 recurse_Default			= 0
 stageText_Default 		= False
 completeText_Default 		= False
@@ -102,8 +102,8 @@ clusterFolder 			= "B_Clusters/"
 statsFile 			= "Outputs/StatsFiles/StatsRun.txt"
 
 # User values
-toaddrsSMS  			= 'X@vtext.com' 
-toaddrsMMS  			= 'X@vzwpix.com'
+toaddrsSMS  			= 'N@vtext.com' 
+toaddrsMMS  			= 'N@vzwpix.com'
 
 
 def getArgsfromFile():
@@ -230,9 +230,10 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
     clustCenters.close()
     classIClustCount = 0
     for i in range(preCIClustFileCount):
-	#print i/float(preCIClustFileCount)
+	print "\t", i/float(preCIClustFileCount)*100, "% of clusters generated" 
 	pCIClustFile = str(preCIClustFolder) + str(i)	
 	A_vectorFile = str(preCIVectorsFolder) + str(i)
+        #print pCIClustFile, A_vectorFile
 	# Run Dictionary Metric
 	trainingSetSize, dimensions = A_fragmentCluster.main(refGenomeFile, pCIClustFile, A_vectorFile, A_fspecs)
 	tsSize.append(trainingSetSize)	
@@ -240,9 +241,11 @@ def generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile,
         tempVar = int(math.log(trainingSetSize/float(DRpCISize), 2))
 	#print tempVar
 	numOfClusters = int(math.pow(2, tempVar))
+	if (numOfClusters < 2):
+	    numOfClusters = 1
 	#print A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters
 	clustStats = B_ClusterAll.startClusteringVTwo(A_vectorFile, clustCentFile, classIClustCount, numOfClusters, dimensions, trainingSetSize, pCIClustFile, classIClustersFolder, cIClusterCenters)
-	#print "BYE"
+	#print "BYE ****************"
 	classIClustCount += numOfClusters
 
     return classIClustCount, dimensions
@@ -254,7 +257,6 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
     #print "Log[ " + str(classIClustCount) + " * " + str(DRpCISize) + " / " + str(DRpCIISize) + " ]"
     #print tempVar
     numOfCIIClusters = int(math.pow(2, tempVar))
-    numOfCIIClusters = 4
     # ** I'm being lazy here: go back and thance this later **
     if (numOfCIIClusters < 2):
 	numOfCIIClusters = 1
@@ -264,9 +266,6 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
     #print (cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
     clustStats = B_ClusterAll.classIIClustering(cIClusterCenters, cIIClusterCenters, numOfCIIClusters, dimensions, classIClustCount, classIClustersFolder, classIIClusterFolder)
     
-    # TESTING TIME OHH YEAH
-    MASfileSizeGoal = 1024*10
-    MASAddedBufferLimit = 1024*2
     
     MASsizeLimit = MASfileSizeGoal + MASAddedBufferLimit
     #print numOfCIIClusters
@@ -351,10 +350,71 @@ def groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cII
     return numOfCIIClusters
     
 
-def assembleCIIClusts(numOfCIIClusters, infolder, outfolder):
+def assembleCIIClusts(numOfCIIClusters, infolder, outfolder, STOverlapThreshold):
     for i in range(numOfCIIClusters):
-	alignMain.jbGenSuffTreeAlign(str(infolder) + str(i), str(outfolder) + str(i))
+	print "\t", i/float(numOfCIIClusters)*100, "% of groups have been assembled" 
+	#alignMain.jbGenSuffTreeAlign(str(infolder) + str(i), str(outfolder) + str(i))
+	try:
+	    alignMain.sfxTreeBasicAlign(str(infolder) + str(i), STOverlapThreshold, str(outfolder) + str(i))
+	except:
+	    print i, ' Failed'
+    return
 
+def trimEdges(seq):
+    # remove leading and trailing N charaters from seqs
+    seq = seq.strip()
+    if (seq == ""):
+	return "\n"
+    if (seq[0] == "N"):
+	seq = seq[1:]
+	trimEdges(seq)
+    if (seq[len(seq)-1] == "N"):
+	seq = seq[:-1]
+	trimEdges(seq)
+    seq = seq + "\n"
+    return seq
+
+def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 50):
+    # get all files in infolder
+    # basically, copy everything to the same folder
+    name_OF_Files = []
+    for dirname, dirnames, filenames in os.walk(infolder):
+	for filename in filenames:
+	    name_OF_Files.append(os.path.join(dirname, filename))
+    #name_OF_Files.append(infolder)
+    i = 0
+    minStr = 0
+    seqMax = ["" for x in range(largestNSeqs)]
+    outputFile = open(str(outfileName), 'w')
+    for i in range(len(name_OF_Files)):
+	filename = name_OF_Files[i]
+	inputfile = open(str(filename), 'r')
+	while True:
+	    line = inputfile.readline()
+	    if (line == ""):
+		break
+	    if (len(line) > STOverlapThreshold):
+		line = trimEdges(line)
+		outputFile.write(line)
+		if (len(line) > minStr):
+		    seqMax[0] = line
+		    seqMax.sort(key = len) # http://stackoverflow.com/questions/2587402
+		    minStr = len(seqMax[0])
+	inputfile.close()
+    outputFile.close()
+    outFile = open((str(outfileName[0:-4])+"Largest" + str(largestNSeqs)+"Contigs.iaf"), 'w')
+    for j in range(largestNSeqs):
+	outFile.write("> "+ str(j+1) + " Length: " +str(len(seqMax[j])))
+        strTemp = seqMax[j]
+	strTemp = strTemp.strip()
+	for i in range(len(strTemp)):
+	    if (((i % 75) == 0) ):
+		outFile.write("\n")
+	    outFile.write(str(strTemp[i]))
+	if((i % 75) != 0):
+	    outFile.write("\n")
+    outFile.close()
+    
     return
     
 
@@ -375,7 +435,16 @@ def cleanUpTemp(start_Folder):
 	    pass
     return
 
-def assembleHome(args):
+def sendMsg(msg):
+    print msg
+    try:
+	sendMessage.sms_message_Send(toaddrsSMS, msg)
+    except:
+	print "\t\tCould not send text message"
+
+    
+
+def itterate(args, itteration, itterationLimit, inFolder):
     gc.enable()
     # assign inputs to varibles 
     inFragReads 		= args.input_file
@@ -443,9 +512,29 @@ def assembleHome(args):
 	under the same name, then merge files into one flatfile in Output
     7.  if the final files are too large, ensure the files are about 10,000
 	contigs in length, and repeat from step 2
+
+
+	msg 		= ("Stage A: building Vectors is complete.\nTime: " + str(timeStageA))
+	try:
+	    if (stageText == True):
+		sendMessage.sms_message_Send(userFreqContact, msg)
+	except:
+	    print "Could not send text message"
+	print msg
+
     '''
     # Delete everything in temp
-    cleanUpTemp("temp/")
+    cleanUpTemp("temp/classIclusters")
+    cleanUpTemp("temp/classIIclusters")
+    cleanUpTemp("temp/preCIfiles")
+    cleanUpTemp("temp/preCIVectors")
+    try:
+	os.remove("cIClustCenters.txt")
+	os.remove("cIIClustCenters.txt")
+	os.remove("clustCents")
+    except OSError:
+	print "Could not delete a clust center file during cleanup"
+    print args, "\n\n\n\n**********RUNNING...**********"
 
 
 
@@ -454,8 +543,22 @@ def assembleHome(args):
     # IN:	Input file, starting index, contig count limit, folderLocation
     # OUT:	total number of files (N)
     startingIndex = 0
-    print "Preping the first files, ", CRpPreCISizeLimit, " contigs per file..."
-    preCIClustFileCount, totalContigCount = prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
+    preCIClustFileCount = 0
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    print st, "\nPreping the first files, ", CRpPreCISizeLimit, " contigs per file..."
+    name_OF_Files = []
+    for dirname, dirnames, filenames in os.walk(inFolder):
+	for filename in filenames:
+	    name_OF_Files.append(os.path.join(dirname, filename))
+    i = 0
+    for i in range(len(name_OF_Files)):
+	filename = name_OF_Files[i]
+	temppreCIClustFileCount, totalContigCount = prepPreCIfiles(filename, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
+	preCIClustFileCount = temppreCIClustFileCount
+	startingIndex = temppreCIClustFileCount
+	
+	#print filename, temppreCIClustFileCount, totalContigCount 
+    cleanUpTemp("temp/outputCIIclusters")
 
     
     # 2. Generate files of vectors for each file 0-N in a seperate
@@ -464,29 +567,265 @@ def assembleHome(args):
     #    and save each cluster center in a center file, cIClusterCenters.txt
     #    there will be P centers, where P = N * k
     # IN: preCIClustFileCount, cIClusterCenters file, refGenomeFile
-    print "Building the clusters of contigs..."
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nBuilding the clusters of contigs..."
+    sendMsg(msg)
     classIClustCount, dimensions = generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
 
 
     # 4. Cluster the centers into Q clusters, and generate the coorosponding
     #    files in temp/classIIclusters/
-    print "Grouping Clusters..."
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nGrouping Clusters..."
+    sendMsg(msg)
     numOfCIIClusters = groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIClustersFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
 
-    print "Assembling Groups..."
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nAssembling Groups..."
+    sendMsg(msg)
     assembleCIIClusts(numOfCIIClusters, classIIClusterFolder, cIIClusterOutputFolder)
+
+    if (itteration+1 > itterationLimit):
+	itterate(args, itteration+1, itterationLimit, inFolder)
+
     # Delete everything in temp
     #cleanUpTemp()
-    print "DONE! Outputs are located in ", cIIClusterOutputFolder
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = "DONE! Outputs are located in " + str(cIIClusterOutputFolder) + '\n' + st
+    sendMsg(msg)
     gc.disable()
     return
+
+def assembleHome(args):
+    gc.enable()
+    # assign inputs to varibles 
+    inFragReads 		= args.input_file
+    outAlignedFragReads 	= args.output_file
+    metric 			= args.cluster_metric
+    refGenomeFile 		= args.reference_file
+    window 			= args.ami_window
+    kmerSize 			= args.kmer_size
+    numOfClusters 		= args.cluster_count
+    warning 			= args.show_warning
+    recurse 			= args.recurse
+    stageText 			= args.send_text
+    completeText 		= args.send_textemail
+    statsFile			= args.stats
+
+    # TODO: Make these open to user
+    AlignmentMethod		= AlignmentMethod_Default
+    STOverlapThreshold 		= STOverlapThreshold_Default
+    clusterDistMet		= clusterDistMet_Default
+    userFreqContact		= userFreqContact_Default
+    userEmail	 		= userEmail_Default
+
+
+    CRpPreCISizeLimit		= 10000		# Cluster Read per Class I size limit (Contig Count)
+    DRpCISize			= 500		# Approx. Reads per Cluster in Class I
+    DRpCIISize			= 80000		# Approx. Reads per Cluster in Class II: 
+    MASfileSizeGoal		= 1		# MB
+    MASAddedBufferLimit		= .4		# MB
+    MASfileSizeTrimmed 		= 8		# MB
+    bytesPerMB			= 1024*1024
+    MASfileSizeGoal		= long(MASfileSizeGoal) * bytesPerMB		# Bytes
+    MASAddedBufferLimit		= long(MASAddedBufferLimit) * bytesPerMB	# Bytes
+    MASfileSizeTrimmed 		= long(MASfileSizeTrimmed) * bytesPerMB		# Bytes
+    classIClustCount 		= 0 			# Class 1 clusters: ~78 contigs per file
+    totalContigCount 		= 0
+    preCIClustFolder		= "temp/preCIfiles/"	# ~10,000 contigs per file
+    preCIClustCount		= 0
+    preCIVectorsFolder		= "temp/preCIVectors/"
+    classICenters		= "temp/classICenters.txt"
+    classIClustersFolder	= "temp/classIclusters/"
+    classIAssemClusterFolder	= "temp/classIclustersAssem/"
+    classIIClusterFolder	= "temp/classIIclusters/"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
+    clustCentFile		= "temp/clusterCenters.txt"
+    cIClusterCenters		= "temp/cIClustCenters.txt"
+    cIIClusterCenters		= "temp/cIIClustCenters.txt"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
+    itterationLimit		= 3
+    
+    
+
+    '''
+    Go through all of the temp folders:
+	Delete everything 
+
+    1.  On startup: Generate files of 10,000 contigs in 
+	temp/preCIfiles files will be labeled as ints 0-N
+    2.  Generate files of vectors for each file 0-N in a seperate
+	folder, temp/preCIVectors/
+    3.	For each contig&vector file pair, break it up into k clusters
+	and save each cluster center in a center file, cIClusterCenters.txt
+	there will be P centers, where P = N * k
+    4.	Cluster the centers into Q clusters, and generate the coorosponding
+	files in temp/classIIclusters/
+    5.  If file i in temp/classIIclusters/ is >10Mb, split the file, name
+	one file i, and the other Q. set Q = Q + 1.
+    6.  Assemble the classIIclusters, output the results into preCIfiles
+	under the same name, then merge files into one flatfile in Output
+    7.  if the final files are too large, ensure the files are about 10,000
+	contigs in length, and repeat from step 2
+
+
+	msg 		= ("Stage A: building Vectors is complete.\nTime: " + str(timeStageA))
+	try:
+	    if (stageText == True):
+		sendMessage.sms_message_Send(userFreqContact, msg)
+	except:
+	    print "Could not send text message"
+	print msg
+
+    '''
+    # Delete everything in temp
+    cleanUpTemp("temp/")
+    print args, "\n\n\n\n**********RUNNING...**********"
+
+
+
+    #1.	On startup: Generate files of 10,000 contigs in 
+    #	temp/preCIfiles files will be labeled as ints 0-N
+    # IN:	Input file, starting index, contig count limit, folderLocation
+    # OUT:	total number of files (N)
+    startingIndex = 0
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    print st, "\nPreping the first files, ", CRpPreCISizeLimit, " contigs per file..."
+    preCIClustFileCount, totalContigCount = prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
+
+
+    
+    # 2. Generate files of vectors for each file 0-N in a seperate
+    #    folder, temp/preCIVectors/
+    # 3. For each contig&vector file pair, break it up into k clusters
+    #    and save each cluster center in a center file, cIClusterCenters.txt
+    #    there will be P centers, where P = N * k
+    # IN: preCIClustFileCount, cIClusterCenters file, refGenomeFile
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nBuilding the clusters of contigs..."
+    sendMsg(msg)
+    classIClustCount, dimensions = generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
+    print "\tAssembling CI Clusters"
+    assembleCIIClusts(classIClustCount, classIClustersFolder, classIAssemClusterFolder, STOverlapThreshold)
+
+
+    # 4. Cluster the centers into Q clusters, and generate the coorosponding
+    #    files in temp/classIIclusters/
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nGrouping Clusters..."
+    sendMsg(msg)
+    numOfCIIClusters = groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIAssemClusterFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nAssembling Groups..."
+    sendMsg(msg)
+    assembleCIIClusts(numOfCIIClusters, classIIClusterFolder, cIIClusterOutputFolder, STOverlapThreshold)
+    outputfile(str(outAlignedFragReads), cIIClusterOutputFolder, STOverlapThreshold)
+
+    #***itterate(args, 0, itterationLimit, cIIClusterOutputFolder)
+
+    # Delete everything in temp
+    #cleanUpTemp()
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = "DONE! Outputs are located in " + str(cIIClusterOutputFolder) + '\n' + st
+    sendMsg(msg)
+    gc.disable()
+    return
+
+def kmForceStuffs(args):
+    gc.enable()
+    # assign inputs to varibles 
+    inFragReads 		= args.input_file
+    outAlignedFragReads 	= args.output_file
+    metric 			= args.cluster_metric
+    refGenomeFile 		= args.reference_file
+    window 			= args.ami_window
+    kmerSize 			= args.kmer_size
+    numOfClusters 		= args.cluster_count
+    warning 			= args.show_warning
+    recurse 			= args.recurse
+    stageText 			= args.send_text
+    completeText 		= args.send_textemail
+    statsFile			= args.stats
+
+    # TODO: Make these open to user
+    AlignmentMethod		= AlignmentMethod_Default
+    STOverlapThreshold 		= STOverlapThreshold_Default
+    clusterDistMet		= clusterDistMet_Default
+    userFreqContact		= userFreqContact_Default
+    userEmail	 		= userEmail_Default
+
+
+    CRpPreCISizeLimit		= 10000		# Cluster Read per Class I size limit (Contig Count)
+    DRpCISize			= 500		# Approx. Reads per Cluster in Class I
+    DRpCIISize			= 80000		# Approx. Reads per Cluster in Class II: 
+    MASfileSizeGoal		= 1		# MB
+    MASAddedBufferLimit		= .4		# MB
+    MASfileSizeTrimmed 		= 8		# MB
+    bytesPerMB			= 1024*1024
+    MASfileSizeGoal		= long(MASfileSizeGoal) * bytesPerMB		# Bytes
+    MASAddedBufferLimit		= long(MASAddedBufferLimit) * bytesPerMB	# Bytes
+    MASfileSizeTrimmed 		= long(MASfileSizeTrimmed) * bytesPerMB		# Bytes
+    classIClustCount 		= 0 			# Class 1 clusters: ~78 contigs per file
+    totalContigCount 		= 0
+    preCIClustFolder		= "temp/preCIfiles/"	# ~10,000 contigs per file
+    preCIClustCount		= 0
+    preCIVectorsFolder		= "temp/preCIVectors/"
+    classICenters		= "temp/classICenters.txt"
+    classIClustersFolder	= "temp/classIclusters/"
+    classIAssemClusterFolder	= "temp/classIclustersAssem/"
+    classIIClusterFolder	= "temp/classIIclusters/"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
+    clustCentFile		= "temp/clusterCenters.txt"
+    cIClusterCenters		= "temp/cIClustCenters.txt"
+    cIIClusterCenters		= "temp/cIIClustCenters.txt"
+    cIIClusterOutputFolder	= "temp/outputCIIclusters/"
+    itterationLimit		= 3
+    # Delete everything in temp
+    print args, "\n\n\n\n**********RUNNING...**********"
+
+    startingIndex = 0
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    print st, "\nPreping the first files, ", CRpPreCISizeLimit, " contigs per file..."
+    preCIClustFileCount, totalContigCount = prepPreCIfiles(inFragReads, startingIndex, CRpPreCISizeLimit, preCIClustFolder)
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nBuilding the clusters of contigs..."
+    sendMsg(msg)
+    classIClustCount, dimensions = generateVectsAndClusts(preCIClustFileCount, cIClusterCenters, refGenomeFile, preCIClustFolder, preCIVectorsFolder, DRpCISize, classIClustersFolder)
+    print "\tAssembling CI Clusters"
+    assembleCIIClusts(classIClustCount, classIClustersFolder, classIAssemClusterFolder, STOverlapThreshold)
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nGrouping Clusters..."
+    sendMsg(msg)
+    numOfCIIClusters = groupClusters(classIClustCount, DRpCISize, DRpCIISize, cIClusterCenters, cIIClusterCenters, dimensions, classIAssemClusterFolder, classIIClusterFolder, MASfileSizeGoal, MASAddedBufferLimit)
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = str(st) + "\nAssembling Groups..."
+    sendMsg(msg)
+    assembleCIIClusts(numOfCIIClusters, classIIClusterFolder, cIIClusterOutputFolder, STOverlapThreshold)
+    outputfile(str(outAlignedFragReads), cIIClusterOutputFolder, STOverlapThreshold)
+
+    st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    msg = "DONE! Outputs are located in " + str(cIIClusterOutputFolder) + '\n' + st
+    sendMsg(msg)
+    gc.disable()
+    return
+
+
+
+def testNewFunctions(args):
+    outputfile("Outputs/OutputAlignments/UNMCPass03.iaf", "temp/classIclustersAssem/", 100, 100)
+    #itterate(args, 1, 3, "temp/outputCIIclusters/")
 
 t = 0
 getArgsfromFile()
 args = interface()
 #main(args, t)
 #master(args)
-assembleHome(args)
+#assembleHome(args)
+testNewFunctions(args)
 
 
 

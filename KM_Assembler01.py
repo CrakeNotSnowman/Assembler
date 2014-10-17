@@ -472,7 +472,7 @@ def main(args, t):
     attchedFile.append(statsFile)
     recip 		= []
     recip.append(userEmail)
-    #recip.append('X@gmail.com')
+    #recip.append('jbohac61@gmail.com')
     try :
 	if (completeText == True):
 	    sendMessage.message_Send_Full_Email(recip, "Alignment Results", msg, attchedFile)

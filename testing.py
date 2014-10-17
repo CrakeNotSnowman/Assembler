@@ -29,5 +29,40 @@ def main():
 	    print "Caught something... Maybe a cold"
 '''
 
+def bashCall(inarg):
+    # error with file 11
+    i = int(inarg)
+    STOverlapThreshold = 50
+    infile = "temp/classIclusters/" + str(i)
+    outfile = "temp/classIclustersAssem/" + str(i)
+    try:
+	#alignMain.jbGenSuffTreeAlign(infile, outfile)
+	alignMain.sfxTreeBasicAlign(infile, STOverlapThreshold, outfile)
+    except:
+	print "Error on file number ", i
+    print "\t", i/float(67)*100, "% of groups have been assembled" 
+	
+    return
 
-main()
+
+def difficultJob():
+    # error with file 11
+    startf = 41
+    endf = 46
+    for i in range(startf, endf):
+	infile = "temp/classIIclusters/" + str(i)
+	outfile = "temp/outputCIIclusters/" + str(i)
+	try:
+	    alignMain.jbGenSuffTreeAlign(infile, outfile)
+	    #print "infile: ", 
+	except:
+	    print "Error on file number ", i
+	print "\t", i/float(67)*100, "% of groups have been assembled" 
+	
+    return
+
+
+#main()
+#difficultJob()
+inarg = sys.argv[1]
+bashCall(inarg)
