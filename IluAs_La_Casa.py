@@ -374,7 +374,7 @@ def trimEdges(seq):
     seq = seq + "\n"
     return seq
 
-def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 50):
+def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 50, filesGreaterThan = 500):
     # get all files in infolder
     # basically, copy everything to the same folder
     name_OF_Files = []
@@ -386,6 +386,7 @@ def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 5
     minStr = 0
     seqMax = ["" for x in range(largestNSeqs)]
     outputFile = open(str(outfileName), 'w')
+    outLargerThan = open((str(outfileName[0:-4])+"GreaterThan" + str(filesGreaterThan)+"baseContigs.iaf"), 'w')
     for i in range(len(name_OF_Files)):
 	filename = name_OF_Files[i]
 	inputfile = open(str(filename), 'r')
@@ -393,6 +394,9 @@ def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 5
 	    line = inputfile.readline()
 	    if (line == ""):
 		break
+	    if (len(line) > filesGreaterThan):
+		outLargerThan.write("> "+ str(i+1) + " Length: " +str(len(line)) + "\n")
+		outLargerThan.write(line)
 	    if (len(line) > STOverlapThreshold):
 		line = trimEdges(line)
 		outputFile.write(line)
@@ -402,6 +406,7 @@ def outputfile(outfileName, infolder, STOverlapThreshold = 100, largestNSeqs = 5
 		    minStr = len(seqMax[0])
 	inputfile.close()
     outputFile.close()
+    outLargerThan.close()
     outFile = open((str(outfileName[0:-4])+"Largest" + str(largestNSeqs)+"Contigs.iaf"), 'w')
     for j in range(largestNSeqs):
 	outFile.write("> "+ str(j+1) + " Length: " +str(len(seqMax[j])))
