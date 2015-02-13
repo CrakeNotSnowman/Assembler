@@ -202,11 +202,7 @@ clock_t t1,t2;
     this->chain = *chain_tmp;
     this->chain_depth = *chain_depth_tmp;
 
-
-//    delete chain_tmp;
-//    delete chain_depth_tmp;
-//    delete wrap_tmp;
-//    delete assmTree;
+   delete assmTree; //// free suffix tree from memory
 float diff ((float)t2-(float)t1);
 
 
